@@ -1166,7 +1166,7 @@ class eZDFSFileHandlerPostgresqlBackend
         $stmt = $this->db->query( $query );
         if ( !$stmt )
         {
-            $this->_error( $query, $stmt, $fname, $error );
+            $this->_error( $query, $fname, $error );
             eZDebug::accumulatorStop( 'postgresql_cluster_query' );
             // @todo Throw an exception
             return false;
@@ -1666,7 +1666,7 @@ class eZDFSFileHandlerPostgresqlBackend
         if ( !$stmt )
         {
             // @todo Throw an exception
-            $this->_error( $query, $stmt, $fname );
+            $this->_error( $query, $fname );
             return false;
         }
         $numRows = $stmt->rowCount();
@@ -1853,7 +1853,7 @@ class eZDFSFileHandlerPostgresqlBackend
 
     /**
      * DB connexion handle
-     * @var PDO
+     * @var handle
      */
     public $db = null;
 
