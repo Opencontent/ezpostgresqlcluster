@@ -785,7 +785,7 @@ class eZDFSFileHandlerPostgresqlBackend
 
         // Mark entry for update to lock it
         //$sql = "SELECT * FROM " . $this->dbTable( $srcFilePath ) . " WHERE name_hash=MD5($srcFilePathStr) FOR UPDATE";
-        $sql = "SELECT * FROM " . $this->dbTable( $srcFilePath ) . " WHERE name_hash=" . $this->_md5( $srcFilePath ) . " FOR UPDATE";
+        $sql = "SELECT * FROM " . $this->dbTable( $srcFilePath ) . " WHERE name_hash=" . $this->_md5( $srcFilePathStr ) . " FOR UPDATE";
         if ( !$this->_query( $sql, "_rename($srcFilePath, $dstFilePath)" ) )
         {
             // @todo Throw an exception
@@ -801,10 +801,10 @@ class eZDFSFileHandlerPostgresqlBackend
         $sql = "INSERT INTO " . $this->dbTable( $srcFilePath ) . " ".
                "(name, name_trunk, name_hash, datatype, scope, size, mtime, expired) " .
                //"SELECT $dstFilePathStr AS name, $dstNameTrunkStr as name_trunk, MD5( $dstFilePathStr ) AS name_hash, " .
-               "SELECT $dstFilePathStr AS name, $dstNameTrunkStr as name_trunk, " . $this->_md5( $dstFilePath ) . " AS name_hash, " .
+               "SELECT $dstFilePathStr AS name, $dstNameTrunkStr as name_trunk, " . $this->_md5( $dstFilePathStr ) . " AS name_hash, " .
                "datatype, scope, size, mtime, expired FROM " . $this->dbTable( $srcFilePath ) . " " .
                //"WHERE name_hash=MD5($srcFilePathStr)";
-               "WHERE name_hash=" . $this->_md5( $srcFilePath );
+               "WHERE name_hash=" . $this->_md5( $srcFilePathStr );
         if ( !$this->_query( $sql, "_rename($srcFilePath, $dstFilePath)" ) )
         {
             eZDebug::writeError( "Failed making new file entry '$dstFilePath'", __METHOD__ );
@@ -820,7 +820,7 @@ class eZDFSFileHandlerPostgresqlBackend
 
         // Remove old entry
         //$sql = "DELETE FROM " . $this->dbTable( $srcFilePath ) . " WHERE name_hash=MD5($srcFilePathStr)";
-        $sql = "DELETE FROM " . $this->dbTable( $srcFilePath ) . " WHERE name_hash=" . $this->_md5( $srcFilePath );
+        $sql = "DELETE FROM " . $this->dbTable( $srcFilePath ) . " WHERE name_hash=" . $this->_md5( $srcFilePathStr );
         if ( !$this->_query( $sql, "_rename($srcFilePath, $dstFilePath)" ) )
         {
             eZDebug::writeError( "Failed removing old file '$srcFilePath'", __METHOD__ );
@@ -1166,7 +1166,7 @@ class eZDFSFileHandlerPostgresqlBackend
         $stmt = $this->db->query( $query );
         if ( !$stmt )
         {
-            $this->_error( $query, $stmt, $fname, $error );
+            $this->_error( $query, $fname, $error );
             eZDebug::accumulatorStop( 'postgresql_cluster_query' );
             // @todo Throw an exception
             return false;
@@ -1415,7 +1415,7 @@ class eZDFSFileHandlerPostgresqlBackend
     protected function _md5( $value )
     {
         //return "MD5(" . $this->_quote( $value ) . ")";
-        return  $this->_quote( md5( $value ) );
+        return  $this-> md5( $value ) ;
     }
 
     /**
@@ -1499,9 +1499,6 @@ class eZDFSFileHandlerPostgresqlBackend
         $query = 'INSERT INTO ' . $this->dbTable( $filePath ) . ' ( '. implode(', ', array_keys( $insertData ) ) . ' ) ' .
                  "VALUES(" . implode( ', ', $insertData ) . ")";
 
-        //per testare scommenta la riga 1503 e sposta righe 1516-1548 fuori dal catch
-        //$query .= "  WHERE NOT EXISTS ( SELECT name_hash FROM ' . $this->dbTable( $filePath ) . ' WHERE name_hash = {$nameHash} );";
-                 
         try {
             $stmt = $this->_query( $query, "_startCacheGeneration( $filePath )", false );
         } catch( PDOException $e ) {
@@ -1666,7 +1663,7 @@ class eZDFSFileHandlerPostgresqlBackend
         if ( !$stmt )
         {
             // @todo Throw an exception
-            $this->_error( $query, $stmt, $fname );
+            $this->_error( $query, $fname );
             return false;
         }
         $numRows = $stmt->rowCount();
@@ -1792,7 +1789,7 @@ class eZDFSFileHandlerPostgresqlBackend
     {
         $tables = array( $this->metaDataTable, $this->metaDataTableCache );
         
-        if ( count( $scopes ) == 0 || $scopes == false )
+        if ( count( $scopes ) == 0 )
             throw new ezcBaseValueException( 'scopes', $scopes, "array of scopes", "parameter" );
 
         $scopeString = $this->_sqlList( $scopes );
@@ -1853,7 +1850,7 @@ class eZDFSFileHandlerPostgresqlBackend
 
     /**
      * DB connexion handle
-     * @var PDO
+     * @var handle
      */
     public $db = null;
 
