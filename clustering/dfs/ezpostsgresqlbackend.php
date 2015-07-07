@@ -12,7 +12,7 @@
  * This class allows DFS based clustering using PostgresSQL
  * @package Cluster
  */
-class eZDFSFileHandlerPostgresqlBackend implements eZDFSFileHandlerDBBackendInterface
+class eZDFSFileHandlerPostgresqlBackend
 {
 
     /**
@@ -143,6 +143,9 @@ class eZDFSFileHandlerPostgresqlBackend implements eZDFSFileHandlerDBBackendInte
 
     /**
      * Disconnects the handler from the database
+     *
+     * @see eZDFSFileHandler::disconnect
+     * @return void
      */
     public function _disconnect()
     {
@@ -233,16 +236,18 @@ class eZDFSFileHandlerPostgresqlBackend implements eZDFSFileHandlerDBBackendInte
 
     /**
      * Purges meta-data and file-data for a file entry
-     *
      * Will only expire a single file. Use _purgeByLike to purge multiple files
+     *
+     * @see eZDFSFileHandler::purge
+     * @see _purgeByLike
      *
      * @param string $filePath Path of the file to purge
      * @param bool $onlyExpired Only purges expired files
      * @param bool|int $expiry
-     * @param bool $fname
+     * @param bool|string $fname Optional caller name for debugging
      *
-     * @see _purgeByLike
-     **/
+     * @return bool
+     */
     public function _purge( $filePath, $onlyExpired = false, $expiry = false, $fname = false )
     {
         if ( $fname )
@@ -537,6 +542,19 @@ class eZDFSFileHandlerPostgresqlBackend implements eZDFSFileHandlerDBBackendInte
         return true;
     }
 
+    /**
+     * Deletes a list of files based on directory / filename components
+     *
+     * @see eZDFSFileHandler::fileDeleteByDirList
+     *
+     * @param array $dirList Array of directory that will be prefixed with
+     *                        $commonPath when looking for files
+     * @param string $commonPath Starting path common to every delete request
+     * @param string $commonSuffix Suffix appended to every delete request
+     * @param bool|string $fname Optional caller name for debugging
+     *
+     * @return bool
+     */
     public function _deleteByDirList( $dirList, $commonPath, $commonSuffix, $fname = false )
     {
         if ( $fname )
@@ -568,6 +586,19 @@ class eZDFSFileHandlerPostgresqlBackend implements eZDFSFileHandlerDBBackendInte
         return true;
     }
 
+    /**
+     * Check if given file/dir exists.
+     *
+     * @see eZDFSFileHandler::fileExists
+     * @see eZDFSFileHandler::exists
+     *
+     * @param $filePath
+     * @param bool|string $fname Optional caller name for debugging
+     * @param bool $ignoreExpiredFiles ignore ezdfsfile.mtime
+     * @param bool $checkOnDFS Checks if a file exists on the DFS
+     *
+     * @return bool
+     */
     public function _exists( $filePath, $fname = false, $ignoreExpiredFiles = true, $checkOnDFS = false )
     {
         if ( $fname )
@@ -704,6 +735,17 @@ class eZDFSFileHandlerPostgresqlBackend implements eZDFSFileHandlerDBBackendInte
         return false;
     }
 
+    /**
+     * Returns file contents.
+     *
+     * @see eZDFSFileHandler::fileFetchContents
+     * @see eZDFSFileHandler::fetchContents
+     *
+     * @param string $filePath
+     * @param bool|string $fname Optional caller name for debugging
+     *
+     * @return string|bool contents string, or false in case of an error.
+     */
     public function _fetchContents( $filePath, $fname = false )
     {
         if ( $fname )
@@ -747,6 +789,17 @@ class eZDFSFileHandlerPostgresqlBackend implements eZDFSFileHandlerDBBackendInte
                                        true );
     }
 
+    /**
+     * Create symbolic or hard link to file. Alias of copy
+     *
+     * @see eZDFSFileHandler::fileLinkCopy
+     *
+     * @param string $srcPath Source file
+     * @param string $dstPath Destination file
+     * @param bool|string $fname Optional caller name for debugging
+     *
+     * @return mixed
+     */
     public function _linkCopy( $srcPath, $dstPath, $fname = false )
     {
         if ( $fname )
@@ -787,8 +840,12 @@ class eZDFSFileHandlerPostgresqlBackend implements eZDFSFileHandlerDBBackendInte
     /**
      * Renames $srcFilePath to $dstFilePath
      *
+     * @see eZDFSFileHandler::fileMove
+     * @see eZDFSFileHandler::move
+     *
      * @param string $srcFilePath
      * @param string $dstFilePath
+     *
      * @return bool
      */
     public function _rename( $srcFilePath, $dstFilePath )
@@ -1831,6 +1888,15 @@ class eZDFSFileHandlerPostgresqlBackend implements eZDFSFileHandlerDBBackendInte
         return $filePathList;
     }
 
+    /**
+     * Transforms $filePath so that it contains a valid href to the file, wherever it is stored.
+     *
+     * @see eZDFSFileHandler::applyServerUri
+     *
+     * @param string $filePath
+     *
+     * @return string
+     */
     public function applyServerUri( $filePath )
     {
         return $this->dfsbackend->applyServerUri( $filePath );
