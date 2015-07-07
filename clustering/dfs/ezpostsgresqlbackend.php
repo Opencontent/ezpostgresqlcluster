@@ -784,7 +784,6 @@ class eZDFSFileHandlerPostgresqlBackend
         $dstNameTrunkStr = $this->_quote( self::nameTrunk( $dstFilePath, $metaData['scope'] ) );
 
         // Mark entry for update to lock it
-        //$sql = "SELECT * FROM " . $this->dbTable( $srcFilePath ) . " WHERE name_hash=MD5($srcFilePathStr) FOR UPDATE";
         $sql = "SELECT * FROM " . $this->dbTable( $srcFilePath ) . " WHERE name_hash=" . $this->_md5( $srcFilePath ) . " FOR UPDATE";
         if ( !$this->_query( $sql, "_rename($srcFilePath, $dstFilePath)" ) )
         {
@@ -800,10 +799,8 @@ class eZDFSFileHandlerPostgresqlBackend
         // Create a new meta-data entry for the new file to make foreign keys happy.
         $sql = "INSERT INTO " . $this->dbTable( $srcFilePath ) . " ".
                "(name, name_trunk, name_hash, datatype, scope, size, mtime, expired) " .
-               //"SELECT $dstFilePathStr AS name, $dstNameTrunkStr as name_trunk, MD5( $dstFilePathStr ) AS name_hash, " .
                "SELECT $dstFilePathStr AS name, $dstNameTrunkStr as name_trunk, " . $this->_md5( $dstFilePath ) . " AS name_hash, " .
                "datatype, scope, size, mtime, expired FROM " . $this->dbTable( $srcFilePath ) . " " .
-               //"WHERE name_hash=MD5($srcFilePathStr)";
                "WHERE name_hash=" . $this->_md5( $srcFilePath );
         if ( !$this->_query( $sql, "_rename($srcFilePath, $dstFilePath)" ) )
         {
@@ -819,7 +816,6 @@ class eZDFSFileHandlerPostgresqlBackend
         }
 
         // Remove old entry
-        //$sql = "DELETE FROM " . $this->dbTable( $srcFilePath ) . " WHERE name_hash=MD5($srcFilePathStr)";
         $sql = "DELETE FROM " . $this->dbTable( $srcFilePath ) . " WHERE name_hash=" . $this->_md5( $srcFilePath );
         if ( !$this->_query( $sql, "_rename($srcFilePath, $dstFilePath)" ) )
         {
@@ -1414,7 +1410,6 @@ class eZDFSFileHandlerPostgresqlBackend
     **/
     protected function _md5( $value )
     {
-        //return "MD5(" . $this->_quote( $value ) . ")";
         return  $this->_quote( md5( $value ) );
     }
 
@@ -1566,7 +1561,6 @@ class eZDFSFileHandlerPostgresqlBackend
         // no rename: the .generating entry is just deleted
         if ( $rename === false )
         {
-            //$this->_query( "DELETE FROM " . $this->dbTable( $filePath ) . " WHERE name_hash=MD5('$generatingFilePath')", $fname, true );
             $this->_query( "DELETE FROM " . $this->dbTable( $filePath ) . " WHERE name_hash=" . $this->_md5( $generatingFilePath ), $fname, true );
             $this->dfsbackend->delete( $generatingFilePath );
             return true;
@@ -1578,7 +1572,6 @@ class eZDFSFileHandlerPostgresqlBackend
             $this->_begin( $fname );
 
             // both files are locked for update
-            //if ( !$stmt = $this->_query( "SELECT * FROM " . $this->dbTable( $filePath ) . " WHERE name_hash=MD5('$generatingFilePath') FOR UPDATE", $fname, true ) )
             if ( !$stmt = $this->_query( "SELECT * FROM " . $this->dbTable( $filePath ) . " WHERE name_hash=" . $this->_md5( $generatingFilePath ) . " FOR UPDATE", $fname, true ) )
             {
                 $this->_rollback( $fname );
@@ -1587,7 +1580,6 @@ class eZDFSFileHandlerPostgresqlBackend
             $generatingMetaData = $stmt->fetch( PDO::FETCH_ASSOC );
 
             // the original file does not exist: we move the generating file
-            //$stmt = $this->_query( "SELECT * FROM " . $this->dbTable( $filePath ) . " WHERE name_hash=MD5('$filePath') FOR UPDATE", $fname, false );
             $stmt = $this->_query( "SELECT * FROM " . $this->dbTable( $filePath ) . " WHERE name_hash=" . $this->_md5( $filePath ) . "  FOR UPDATE", $fname, false );
             if ( $stmt->rowCount() == 0 )
             {
@@ -1609,7 +1601,6 @@ class eZDFSFileHandlerPostgresqlBackend
                     $this->_rollback( $fname );
                     throw new RuntimeException("An error occured renaming DFS://$generatingFilePath to DFS://$filePath" );
                 }
-                //$this->_query( "DELETE FROM " . $this->dbTable( $filePath ) . " WHERE name_hash=MD5('$generatingFilePath')", $fname, true );
                 $this->_query( "DELETE FROM " . $this->dbTable( $filePath ) . " WHERE name_hash=" . $this->_md5( $generatingFilePath ), $fname, true );
             }
             // the original file exists: we move the generating data to this file
@@ -1624,13 +1615,11 @@ class eZDFSFileHandlerPostgresqlBackend
 
                 $mtime = $generatingMetaData['mtime'];
                 $filesize = $generatingMetaData['size'];
-                //if ( !$this->_query( "UPDATE " . $this->dbTable( $filePath ) . " SET mtime = '{$mtime}', expired = 0, size = '{$filesize}' WHERE name_hash=MD5('$filePath')", $fname, true ) )
                 if ( !$this->_query( "UPDATE " . $this->dbTable( $filePath ) . " SET mtime = '{$mtime}', expired = 0, size = '{$filesize}' WHERE name_hash=" . $this->_md5( $filePath ), $fname, true ) )
                 {
                     $this->_rollback( $fname );
                     throw new RuntimeException( "An error marking '$filePath' as not expired in the database" );
                 }
-                //$this->_query( "DELETE FROM " . $this->dbTable( $filePath ) . " WHERE name_hash=MD5('$generatingFilePath')", $fname, true );
                 $this->_query( "DELETE FROM " . $this->dbTable( $filePath ) . " WHERE name_hash=" . $this->_md5( $generatingFilePath ), $fname, true );
             }
 
