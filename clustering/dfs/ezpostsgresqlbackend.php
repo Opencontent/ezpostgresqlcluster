@@ -558,9 +558,9 @@ class eZDFSFileHandlerPostgresqlBackend
     public function _deleteByDirList( $dirList, $commonPath, $commonSuffix, $fname = false )
     {
         if ( $fname )
-            $fname .= "::_deleteByDirList($dirList, $commonPath, $commonSuffix)";
+            $fname .= "::_deleteByDirList(" . implode( ' ',$dirList ) . ", $commonPath, $commonSuffix)";
         else
-            $fname = "_deleteByDirList($dirList, $commonPath, $commonSuffix)";
+            $fname = "_deleteByDirList(" . implode( ' ',$dirList ) . ", $commonPath, $commonSuffix)";
         return $this->_protect( array( $this, '_deleteByDirListInner' ), $fname,
                                 $dirList, $commonPath, $commonSuffix, $fname );
     }
@@ -1270,7 +1270,7 @@ class eZDFSFileHandlerPostgresqlBackend
      **/
     protected function _selectOne( $query, $fname, $error = false, $debug = false, $fetchCall )
     {
-        eZDebug::accumulatorStart( 'postgresql_cluster_query', 'PostgresSQL Cluster', 'DB queries' );
+        eZDebug::accumulatorStart( 'postgresql_cluster_query', 'PostgreSQL Cluster', 'DB queries' );
         $time = microtime( true );
 
         $stmt = $this->db->query( $query );
