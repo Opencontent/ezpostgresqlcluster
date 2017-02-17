@@ -12,7 +12,7 @@
  * This class allows DFS based clustering using PostgresSQL
  * @package Cluster
  */
-class eZDFSFileHandlerPostgresqlBackend
+class eZDFSFileHandlerPostgresqlBackend implements eZDFSFileHandlerDBBackendInterface
 {
 
     /**
@@ -72,9 +72,10 @@ class eZDFSFileHandlerPostgresqlBackend
      * Connects to the database.
      *
      * @return void
-     * @throw eZClusterHandlerDBNoConnectionException
-     * @throw eZClusterHandlerDBNoDatabaseException
-     **/
+     *
+     * @throws eZClusterHandlerDBNoConnectionException
+     * @throws eZClusterHandlerDBNoDatabaseException
+     */
     public function _connect()
     {
         $siteINI = eZINI::instance( 'site.ini' );
@@ -130,7 +131,7 @@ class eZDFSFileHandlerPostgresqlBackend
 
 
         if ( !$this->db )
-            throw new eZClusterHandlerDBNoConnectionException( $connectString, self::$dbparams['user'], self::$dbparams['pass'] );
+            throw new eZClusterHandlerDBNoDatabaseException( $connectString, self::$dbparams['user'], self::$dbparams['pass'] );
 
         $this->db->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION );
         $this->db->exec( "SET NAMES 'utf8'" );
@@ -387,14 +388,20 @@ class eZDFSFileHandlerPostgresqlBackend
         //       for now.
         if ( $insideOfTransaction )
         {
-            return $this->_deleteInner( $filePath, $fname );
+            $res = $this->_deleteInner( $filePath, $fname );
+            if ( !$res || $res instanceof eZMySQLBackendError )
+            {
+                $this->_handleErrorType( $res );
+            }
 
         }
         else
         {
-            return $this->_protect( array( $this, '_deleteInner' ), $fname,
+            $res = $this->_protect( array( $this, '_deleteInner' ), $fname,
                                     $filePath, $insideOfTransaction, $fname );
         }
+
+        return $res;
     }
 
     /**
@@ -1311,7 +1318,7 @@ class eZDFSFileHandlerPostgresqlBackend
     * Starts a new transaction by executing a BEGIN call.
     * If a transaction is already started nothing is executed.
     **/
-    protected function _begin()
+    protected function _begin($fname = false)
     {
         $this->transactionCount++;
         if ( $this->transactionCount == 1 )
@@ -1322,7 +1329,7 @@ class eZDFSFileHandlerPostgresqlBackend
     * Stops a current transaction and commits the changes by executing a COMMIT call.
     * If the current transaction is a sub-transaction nothing is executed.
     **/
-    protected function _commit()
+    protected function _commit($fname = false)
     {
         $this->transactionCount--;
         if ( $this->transactionCount == 0 )
@@ -1334,7 +1341,7 @@ class eZDFSFileHandlerPostgresqlBackend
     * ROLLBACK call.
     * If the current transaction is a sub-transaction nothing is executed.
     **/
-    protected function _rollback()
+    protected function _rollback($fname = false)
     {
         $this->transactionCount--;
         if ( $this->transactionCount == 0 )
@@ -1368,6 +1375,18 @@ class eZDFSFileHandlerPostgresqlBackend
 
             try {
                 $result = call_user_func_array( $callback, $args );
+                if ( $result === false )
+                {
+                    $this->_rollback( $fname );
+                    return false;
+                }
+                elseif ( $result instanceof eZMySQLBackendError )
+                {
+                    eZDebug::writeError( $result->errorValue, $result->errorText );
+                    $this->_rollback( $fname );
+                    return false;
+                }
+
             }
             catch( PDOException $e )
             {
@@ -1391,7 +1410,7 @@ class eZDFSFileHandlerPostgresqlBackend
      *
      * @param mixed $message The value which is sent to the debug system.
      * @param PDOStatement|bool $result The failed SQL result
-     * @throws Exception
+     * @return eZMySQLBackendError
      **/
     protected function _fail( $message, $result = false)
     {
@@ -1405,7 +1424,7 @@ class eZDFSFileHandlerPostgresqlBackend
             $errorInfo = $this->db->errorInfo();
             $message .= "\n$errorInfo[2]";
         }
-        throw new Exception( $message );
+        return new eZMySQLBackendError( $message, $result );
     }
 
     /**
@@ -1928,6 +1947,18 @@ class eZDFSFileHandlerPostgresqlBackend
         }
 
         return $stmt->rowCount();
+    }
+
+    protected function _handleErrorType( $res )
+    {
+        if ( $res === false )
+        {
+            eZDebug::writeError( "SQL failed" );
+        }
+        elseif ( $res instanceof eZMySQLBackendError )
+        {
+            eZDebug::writeError( $res->errorValue, $res->errorText );
+        }
     }
 
 
