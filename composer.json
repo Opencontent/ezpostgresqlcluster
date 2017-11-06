@@ -1,0 +1,13 @@
+{
+    "name": "opencontent/ezpostgresqlcluster-ls",
+    "description": "PostgreSQL Cluster",
+    "type": "ezpublish-legacy-extension",    
+    "license": "GPL-2.0",    
+    "minimum-stability": "dev",
+    "require": {
+        "ezsystems/ezpublish-legacy-installer": "*"
+    },
+    "extra": {
+        "ezpublish-legacy-extension-name": "ezpostgresqlcluster"
+    }
+}
