@@ -1371,12 +1371,12 @@ class eZDFSFileHandlerPostgresqlBackend
             }
             catch( PDOException $e )
             {
-                eZDebug::writeError( $e );
+                eZDebug::writeError( $e->getMessage(), __METHOD__ );
                 return false;
             }
             catch( Exception $e )
             {
-                eZDebug::writeError( $e );
+                eZDebug::writeError( $e->getMessage(), __METHOD__ );
                 return false;
             }
             break; // All is good, so break out of loop
