@@ -27,8 +27,23 @@ class eZDFSFileHandlerPostgresqlBackend
      */
     protected $maxCopyTries;
 
+    protected static function writeError($string, $label = "", $backgroundClass = "")
+    {
+        $logName = 'cluster_error.log';
+        if ( isset( $GLOBALS['eZCurrentAccess']['name'] ) ){
+            $logName = $GLOBALS['eZCurrentAccess']['name'] . '_cluster_error.log';
+        }
+
+        if ($label){
+            $message = "[$label] $string";
+        }else{
+            $message = $string;
+        }
+        eZLog::write($message, $logName);
+    }
+
     public function __construct()
-    {        
+    {
         $this->eventHandler = ezpEvent::getInstance();
         $fileINI = eZINI::instance( 'file.ini' );
         $this->maxCopyTries = (int)$fileINI->variable( 'eZDFSClusteringSettings', 'MaxCopyRetries' );
@@ -45,7 +60,7 @@ class eZDFSFileHandlerPostgresqlBackend
         $this->cacheDir = eZINI::instance( 'site.ini' )->variable( 'FileSettings', 'CacheDir' );
         $this->storageDir = eZINI::instance( 'site.ini' )->variable( 'FileSettings', 'StorageDir' );
     }
-    
+
     /**
      * Returns the database table name to use for the specified file.
      *
@@ -67,7 +82,7 @@ class eZDFSFileHandlerPostgresqlBackend
 
         return $this->metaDataTable;
     }
-    
+
     /**
      * Connects to the database.
      *
@@ -116,7 +131,7 @@ class eZDFSFileHandlerPostgresqlBackend
             try {
                 $this->db = new PDO( $connectString, self::$dbparams['user'], self::$dbparams['pass'] );
             } catch ( PDOException $e ) {
-                eZDebug::writeError( $e->getMessage() );
+                self::writeError( $e->getMessage() );
                 ++$tries;
                 continue;
             }
@@ -185,7 +200,7 @@ class eZDFSFileHandlerPostgresqlBackend
             return false;
         }
         return $this->_protect( array( $this, "_copyInner" ), $fname,
-                                $srcFilePath, $dstFilePath, $fname, $metaData );
+            $srcFilePath, $dstFilePath, $fname, $metaData );
     }
 
     /**
@@ -212,16 +227,16 @@ class eZDFSFileHandlerPostgresqlBackend
 
         // Copy file metadata.
         if ( $this->_insertUpdate( $this->dbTable( $dstFilePath ),
-                                   array( 'datatype'=> $datatype,
-                                          'name' => $dstFilePath,
-                                          'name_trunk' => $nameTrunk,
-                                          'name_hash' => $filePathHash,
-                                          'scope' => $scope,
-                                          'size' => $contentLength,
-                                          'mtime' => $fileMTime,
-                                          'expired' => ( $fileMTime < 0 ) ? 1 : 0 ),
-                                   array( 'datatype', 'scope', 'size', 'mtime', 'expired' ),
-                                   $fname ) === false )
+                array( 'datatype'=> $datatype,
+                       'name' => $dstFilePath,
+                       'name_trunk' => $nameTrunk,
+                       'name_hash' => $filePathHash,
+                       'scope' => $scope,
+                       'size' => $contentLength,
+                       'mtime' => $fileMTime,
+                       'expired' => ( $fileMTime < 0 ) ? 1 : 0 ),
+                array( 'datatype', 'scope', 'size', 'mtime', 'expired' ),
+                $fname ) === false )
         {
             $this->_fail( $srcFilePath, "Failed to insert file metadata on copying." );
         }
@@ -393,7 +408,7 @@ class eZDFSFileHandlerPostgresqlBackend
         else
         {
             return $this->_protect( array( $this, '_deleteInner' ), $fname,
-                                    $filePath, $insideOfTransaction, $fname );
+                $filePath, $insideOfTransaction, $fname );
         }
     }
 
@@ -434,7 +449,7 @@ class eZDFSFileHandlerPostgresqlBackend
         else
             $fname = "_deleteByLike($like)";
         return $this->_protect( array( $this, '_deleteByLikeInner' ), $fname,
-                                $like, $fname );
+            $like, $fname );
     }
 
     /**
@@ -474,7 +489,7 @@ class eZDFSFileHandlerPostgresqlBackend
         else
             $fname = "_deleteByRegex($regex)";
         return $this->_protect( array( $this, '_deleteByRegexInner' ), $fname,
-                                $regex, $fname );
+            $regex, $fname );
     }
 
     /**
@@ -510,7 +525,7 @@ class eZDFSFileHandlerPostgresqlBackend
         else
             $fname = "_deleteByWildcard($wildcard)";
         return $this->_protect( array( $this, '_deleteByWildcardInner' ), $fname,
-                                $wildcard, $fname );
+            $wildcard, $fname );
     }
 
     /**
@@ -527,12 +542,12 @@ class eZDFSFileHandlerPostgresqlBackend
         $regex = '^' . pg_escape_string( $this->db, $wildcard ) . '$';
 
         $regex = str_replace( array( '.'  ),
-                              array( '\.' ),
-                              $regex );
+            array( '\.' ),
+            $regex );
 
         $regex = str_replace( array( '?', '*',  '{', '}', ',' ),
-                              array( '.', '.*', '(', ')', '|' ),
-                              $regex );
+            array( '.', '.*', '(', ')', '|' ),
+            $regex );
 
         $sql = "UPDATE " . $this->dbTable( $wildcard ) . " SET mtime=-ABS(mtime), expired=1\nWHERE name REGEXP '$regex'";
         if ( !$res = $this->_query( $sql, $fname ) )
@@ -562,7 +577,7 @@ class eZDFSFileHandlerPostgresqlBackend
         else
             $fname = "_deleteByDirList(" . implode( ' ',$dirList ) . ", $commonPath, $commonSuffix)";
         return $this->_protect( array( $this, '_deleteByDirListInner' ), $fname,
-                                $dirList, $commonPath, $commonSuffix, $fname );
+            $dirList, $commonPath, $commonSuffix, $fname );
     }
 
     protected function _deleteByDirListInner( $dirList, $commonPath, $commonSuffix, $fname )
@@ -580,7 +595,7 @@ class eZDFSFileHandlerPostgresqlBackend
             $sql = "UPDATE " . $this->dbTable( $commonPath ) . " SET mtime=-ABS(mtime), expired=1\n$where";
             if ( !$stmt = $this->_query( $sql, $fname ) )
             {
-                eZDebug::writeError( "Failed to delete files in dir: '$commonPath/$dirItem/$commonSuffix%'", __METHOD__ );
+                self::writeError( "Failed to delete files in dir: '$commonPath/$dirItem/$commonSuffix%'", __METHOD__ );
             }
         }
         return true;
@@ -606,7 +621,7 @@ class eZDFSFileHandlerPostgresqlBackend
         else
             $fname = "_exists($filePath)";
         $row = $this->_selectOneRow( "SELECT name, mtime FROM " . $this->dbTable( $filePath ) . " WHERE name_hash=" . $this->_md5( $filePath ),
-                                     $fname, "Failed to check file '$filePath' existence: ", true );
+            $fname, "Failed to check file '$filePath' existence: ", true );
         if ( $row === false )
             return false;
 
@@ -619,7 +634,7 @@ class eZDFSFileHandlerPostgresqlBackend
         {
             $rc = $this->dfsbackend->existsOnDFS( $filePath );
         }
-        
+
         return $rc;
     }
 
@@ -671,7 +686,7 @@ class eZDFSFileHandlerPostgresqlBackend
         if ( !$metaData )
         {
             // @todo Throw an exception
-            eZDebug::writeError( "File '$filePath' does not exist while trying to fetch.", __METHOD__ );
+            self::writeError( "File '$filePath' does not exist while trying to fetch.", __METHOD__ );
             return false;
         }
 
@@ -694,7 +709,7 @@ class eZDFSFileHandlerPostgresqlBackend
             // @todo Throw an exception
             if ( !$this->dfsbackend->copyFromDFS( $filePath, $tmpFilePath ) )
             {
-                eZDebug::writeError("Failed copying DFS://$filePath to FS://$tmpFilePath ");
+                self::writeError("Failed copying DFS://$filePath to FS://$tmpFilePath ");
                 usleep( self::TIME_UNTIL_RETRY );
                 ++$loopCount;
                 continue;
@@ -731,7 +746,7 @@ class eZDFSFileHandlerPostgresqlBackend
         while ( $dfsFileSize > $localFileSize && $loopCount < $this->maxCopyTries );
 
         // Copy from DFS has failed :-(
-        eZDebug::writeError( "Size ({$localFileSize}) of written data for file '{$filePath}' does not match expected size {$metaData['size']}", __METHOD__ );
+        self::writeError( "Size ({$localFileSize}) of written data for file '{$filePath}' does not match expected size {$metaData['size']}", __METHOD__ );
         return false;
     }
 
@@ -756,14 +771,14 @@ class eZDFSFileHandlerPostgresqlBackend
         // @todo Throw an exception
         if ( !$metaData )
         {
-            eZDebug::writeError( "File '$filePath' does not exist while trying to fetch its contents.", __METHOD__ );
+            self::writeError( "File '$filePath' does not exist while trying to fetch its contents.", __METHOD__ );
             return false;
         }
 
         // @todo Catch an exception
         if ( !$contents = $this->dfsbackend->getContents( $filePath ) )
         {
-            eZDebug::writeError("An error occurred while reading contents of DFS://$filePath", __METHOD__ );
+            self::writeError("An error occurred while reading contents of DFS://$filePath", __METHOD__ );
             return false;
         }
         return $contents;
@@ -785,8 +800,8 @@ class eZDFSFileHandlerPostgresqlBackend
             $fname = "_fetchMetadata($filePath)";
         $sql = "SELECT * FROM " . $this->dbTable( $filePath ) . " WHERE name_hash=" . $this->_md5( $filePath );
         return $this->_selectOneAssoc( $sql, $fname,
-                                       "Failed to retrieve file metadata: $filePath",
-                                       true );
+            "Failed to retrieve file metadata: $filePath",
+            true );
     }
 
     /**
@@ -870,7 +885,7 @@ class eZDFSFileHandlerPostgresqlBackend
         if ( !$this->_query( $sql, "_rename($srcFilePath, $dstFilePath)" ) )
         {
             // @todo Throw an exception
-            eZDebug::writeError( "Failed locking file '$srcFilePath'", __METHOD__ );
+            self::writeError( "Failed locking file '$srcFilePath'", __METHOD__ );
             $this->_rollback( __METHOD__ );
             return false;
         }
@@ -886,7 +901,7 @@ class eZDFSFileHandlerPostgresqlBackend
                "WHERE name_hash=" . $this->_md5( $srcFilePath );
         if ( !$this->_query( $sql, "_rename($srcFilePath, $dstFilePath)" ) )
         {
-            eZDebug::writeError( "Failed making new file entry '$dstFilePath'", __METHOD__ );
+            self::writeError( "Failed making new file entry '$dstFilePath'", __METHOD__ );
             $this->_rollback( __METHOD__ );
             // @todo Throw an exception
             return false;
@@ -901,7 +916,7 @@ class eZDFSFileHandlerPostgresqlBackend
         $sql = "DELETE FROM " . $this->dbTable( $srcFilePath ) . " WHERE name_hash=" . $this->_md5( $srcFilePath );
         if ( !$this->_query( $sql, "_rename($srcFilePath, $dstFilePath)" ) )
         {
-            eZDebug::writeError( "Failed removing old file '$srcFilePath'", __METHOD__ );
+            self::writeError( "Failed removing old file '$srcFilePath'", __METHOD__ );
             $this->_rollback( __METHOD__ );
             // @todo Throw an exception
             return false;
@@ -932,7 +947,7 @@ class eZDFSFileHandlerPostgresqlBackend
     {
         if ( !is_readable( $filePath ) )
         {
-            eZDebug::writeError( "Unable to store file '$filePath' since it is not readable.", __METHOD__ );
+            self::writeError( "Unable to store file '$filePath' since it is not readable.", __METHOD__ );
             return false;
         }
         if ( $fname )
@@ -941,7 +956,7 @@ class eZDFSFileHandlerPostgresqlBackend
             $fname = "_store($filePath, $datatype, $scope)";
 
         return $this->_protect( array( $this, '_storeInner' ), $fname,
-                         $filePath, $datatype, $scope, $fname );
+            $filePath, $datatype, $scope, $fname );
     }
 
     /**
@@ -963,16 +978,16 @@ class eZDFSFileHandlerPostgresqlBackend
         $nameTrunk = self::nameTrunk( $filePath, $scope );
 
         if ( $this->_insertUpdate( $this->dbTable( $filePath ),
-            array( 'datatype' => $datatype,
-                   'name' => $filePath,
-                   'name_trunk' => $nameTrunk,
-                   'name_hash' => $filePathHash,
-                   'scope' => $scope,
-                   'size' => $contentLength,
-                   'mtime' => $fileMTime,
-                   'expired' => ( $fileMTime < 0 ) ? 1 : 0 ),
-            array( 'datatype', 'scope', 'size', 'mtime', 'expired' ),
-            $fname ) === false )
+                array( 'datatype' => $datatype,
+                       'name' => $filePath,
+                       'name_trunk' => $nameTrunk,
+                       'name_hash' => $filePathHash,
+                       'scope' => $scope,
+                       'size' => $contentLength,
+                       'mtime' => $fileMTime,
+                       'expired' => ( $fileMTime < 0 ) ? 1 : 0 ),
+                array( 'datatype', 'scope', 'size', 'mtime', 'expired' ),
+                $fname ) === false )
         {
             $this->_fail( "Failed to insert file metadata while storing. Possible race condition" );
         }
@@ -1009,7 +1024,7 @@ class eZDFSFileHandlerPostgresqlBackend
             $fname = "_storeContents($filePath, ..., $scope, $datatype)";
 
         return $this->_protect( array( $this, '_storeContentsInner' ), $fname,
-                         $filePath, $contents, $scope, $datatype, $mtime, $fname );
+            $filePath, $contents, $scope, $datatype, $mtime, $fname );
     }
 
     function _storeContentsInner( $filePath, $contents, $scope, $datatype, $mtime, $fname )
@@ -1069,11 +1084,11 @@ class eZDFSFileHandlerPostgresqlBackend
     {
         $filePathList = array();
         $tables = array_unique( array( $this->metaDataTable, $this->metaDataTableCache ) );
-        
+
         foreach ( $tables as $table )
         {
             $query = 'SELECT name FROM ' . $table;
-    
+
             if ( is_array( $scopes ) && count( $scopes ) > 0 )
             {
                 $query .= ' WHERE scope ';
@@ -1081,7 +1096,7 @@ class eZDFSFileHandlerPostgresqlBackend
                     $query .= 'NOT ';
                 $query .= "IN ('" . implode( "', '", $scopes ) . "')";
             }
-    
+
             $stmt = $this->_query( $query, "_getFileList( array( " . implode( ', ', $scopes ) . " ), $excludeScopes )" );
             if ( !$stmt )
             {
@@ -1089,33 +1104,33 @@ class eZDFSFileHandlerPostgresqlBackend
                 // @todo Throw an exception
                 return false;
             }
-    
+
             $filePathList = array();
             while ( $row = $stmt->fetch( PDO::FETCH_NUM ) )
                 $filePathList[] = $row[0];
-    
+
             unset( $stmt );
         }
         return $filePathList;
     }
 
     /**
-    * Handles a DB error, displaying it as an eZDebug error
-    * @see eZDebug::writeError
-    * @param string $msg Message to display
-    * @param string $sql SQL query to display error for
-    * @return void
-    **/
+     * Handles a DB error, displaying it as an eZDebug error
+     * @see self::writeError
+     * @param string $msg Message to display
+     * @param string $sql SQL query to display error for
+     * @return void
+     **/
     protected function _die( $msg, $sql = null )
     {
         if ( $this->db )
         {
             $error = $this->db->errorInfo();
-            eZDebug::writeError( $sql, "$msg: {$error[2]}" );
+            self::writeError( $sql, "$msg: {$error[2]}" );
         }
         else
         {
-            eZDebug::writeError( $sql, $msg );
+            self::writeError( $sql, $msg );
         }
     }
 
@@ -1199,12 +1214,12 @@ class eZDFSFileHandlerPostgresqlBackend
     }
 
     /**
-    * Formats a list of entries as an SQL list which is separated by commas.
-    * Each entry in the list is quoted using _quote().
-    *
-    * @param array $array
-    * @return array
-    **/
+     * Formats a list of entries as an SQL list which is separated by commas.
+     * Each entry in the list is quoted using _quote().
+     *
+     * @param array $array
+     * @return array
+     **/
     protected function _sqlList( $array )
     {
         $text = "";
@@ -1285,7 +1300,7 @@ class eZDFSFileHandlerPostgresqlBackend
         $numRows = $stmt->rowCount();
         if ( $numRows > 1 )
         {
-            eZDebug::writeError( 'Duplicate entries found', $fname );
+            self::writeError( 'Duplicate entries found', $fname );
             eZDebug::accumulatorStop( 'postgresql_cluster_query' );
             // @todo throw an exception instead. Should NOT happen.
         }
@@ -1308,9 +1323,9 @@ class eZDFSFileHandlerPostgresqlBackend
     }
 
     /**
-    * Starts a new transaction by executing a BEGIN call.
-    * If a transaction is already started nothing is executed.
-    **/
+     * Starts a new transaction by executing a BEGIN call.
+     * If a transaction is already started nothing is executed.
+     **/
     protected function _begin()
     {
         $this->transactionCount++;
@@ -1319,9 +1334,9 @@ class eZDFSFileHandlerPostgresqlBackend
     }
 
     /**
-    * Stops a current transaction and commits the changes by executing a COMMIT call.
-    * If the current transaction is a sub-transaction nothing is executed.
-    **/
+     * Stops a current transaction and commits the changes by executing a COMMIT call.
+     * If the current transaction is a sub-transaction nothing is executed.
+     **/
     protected function _commit()
     {
         $this->transactionCount--;
@@ -1330,10 +1345,10 @@ class eZDFSFileHandlerPostgresqlBackend
     }
 
     /**
-    * Stops a current transaction and discards all changes by executing a
-    * ROLLBACK call.
-    * If the current transaction is a sub-transaction nothing is executed.
-    **/
+     * Stops a current transaction and discards all changes by executing a
+     * ROLLBACK call.
+     * If the current transaction is a sub-transaction nothing is executed.
+     **/
     protected function _rollback()
     {
         $this->transactionCount--;
@@ -1342,17 +1357,17 @@ class eZDFSFileHandlerPostgresqlBackend
     }
 
     /**
-    * Protects a custom function with SQL queries in a database transaction.
-    * If the function reports an error the transaction is ROLLBACKed.
-    *
-    * The first argument to the _protect() is the callback and the second is the
-    * name of the function (for query reporting). The remainder of arguments are
-    * sent to the callback.
-    *
-    * A return value of false from the callback is considered a failure, any
-    * other value is returned from _protect(). For extended error handling call
-    * _fail() and return the value.
-    **/
+     * Protects a custom function with SQL queries in a database transaction.
+     * If the function reports an error the transaction is ROLLBACKed.
+     *
+     * The first argument to the _protect() is the callback and the second is the
+     * name of the function (for query reporting). The remainder of arguments are
+     * sent to the callback.
+     *
+     * A return value of false from the callback is considered a failure, any
+     * other value is returned from _protect(). For extended error handling call
+     * _fail() and return the value.
+     **/
     protected function _protect()
     {
         $result = false;
@@ -1371,12 +1386,12 @@ class eZDFSFileHandlerPostgresqlBackend
             }
             catch( PDOException $e )
             {
-                eZDebug::writeError( $e->getMessage(), __METHOD__ );
+                self::writeError( $e->getMessage(), __METHOD__ );
                 return false;
             }
             catch( Exception $e )
             {
-                eZDebug::writeError( $e->getMessage(), __METHOD__ );
+                self::writeError( $e->getMessage(), __METHOD__ );
                 return false;
             }
             break; // All is good, so break out of loop
@@ -1443,12 +1458,12 @@ class eZDFSFileHandlerPostgresqlBackend
     }
 
     /**
-    * Make sure that $value is escaped and quoted according to type and returned
-    * as a string.
-    *
-    * @param string $value a SQL parameter to escape
-    * @return string a string that can safely be used in SQL queries
-    **/
+     * Make sure that $value is escaped and quoted according to type and returned
+     * as a string.
+     *
+     * @param string $value a SQL parameter to escape
+     * @return string a string that can safely be used in SQL queries
+     **/
     protected function _quote( $value )
     {
         if ( $value === null )
@@ -1464,8 +1479,8 @@ class eZDFSFileHandlerPostgresqlBackend
     }
 
     /**
-    * Provides the SQL calls to convert $value to MD5
-    * The returned value can directly be put into SQLs.
+     * Provides the SQL calls to convert $value to MD5
+     * The returned value can directly be put into SQLs.
      * @param $value
      *
      * @return string
@@ -1476,16 +1491,16 @@ class eZDFSFileHandlerPostgresqlBackend
     }
 
     /**
-    * Prints error message $error to debug system.
-    * @param string $query The query that was attempted, will be printed if
-    *                      $error is \c false
-    * @param PDOStatement|resource $res The result resource the error occurred on
-    * @param string $fname The function name that started the query, should
-    *                      contain relevant arguments in the text.
-    * @param string $error The error message, if this is an array the first
-    *                      element is the value to dump and the second the error
-    *                      header (for eZDebug::writeNotice). If this is \c
-    *                      false a generic message is shown.
+     * Prints error message $error to debug system.
+     * @param string $query The query that was attempted, will be printed if
+     *                      $error is \c false
+     * @param PDOStatement|resource $res The result resource the error occurred on
+     * @param string $fname The function name that started the query, should
+     *                      contain relevant arguments in the text.
+     * @param string $error The error message, if this is an array the first
+     *                      element is the value to dump and the second the error
+     *                      header (for eZDebug::writeNotice). If this is \c
+     *                      false a generic message is shown.
      */
     protected function _error( $query, $res, $fname, $error = "Failed to execute SQL for function:" )
     {
@@ -1500,7 +1515,7 @@ class eZDFSFileHandlerPostgresqlBackend
         }
 
         // @todo Investigate error methods
-        eZDebug::writeError( "$error\n" . pg_result_error_field( $res, PGSQL_DIAG_SQLSTATE ) . ': ' . pg_result_error_field( $res, PGSQL_DIAG_MESSAGE_PRIMARY ) . ' ' .$query, $fname );
+        self::writeError( "$error\n" . pg_result_error_field( $res, PGSQL_DIAG_SQLSTATE ) . ': ' . pg_result_error_field( $res, PGSQL_DIAG_MESSAGE_PRIMARY ) . ' ' .$query, $fname );
     }
 
     /**
@@ -1564,7 +1579,7 @@ class eZDFSFileHandlerPostgresqlBackend
 
         //per testare scommenta la riga 1503 e sposta righe 1516-1548 fuori dal catch @todo
         //$query .= "  WHERE NOT EXISTS ( SELECT name_hash FROM ' . $this->dbTable( $filePath ) . ' WHERE name_hash = {$nameHash} );";
-                 
+
         try
         {
             $stmt = $this->_query( $query, "_startCacheGeneration( $filePath )", false );
@@ -1708,14 +1723,14 @@ class eZDFSFileHandlerPostgresqlBackend
     }
 
     /**
-    * Checks if generation has timed out by looking for the .generating file
-    * and comparing its timestamp to the one assigned when the file was created
-    *
-    * @param string $generatingFilePath
-    * @param int    $generatingFileMtime
-    *
-    * @return bool true if the file didn't timeout, false otherwise
-    **/
+     * Checks if generation has timed out by looking for the .generating file
+     * and comparing its timestamp to the one assigned when the file was created
+     *
+     * @param string $generatingFilePath
+     * @param int    $generatingFileMtime
+     *
+     * @return bool true if the file didn't timeout, false otherwise
+     **/
     public function _checkCacheGenerationTimeout( $generatingFilePath, $generatingFileMtime )
     {
         $fname = "_checkCacheGenerationTimeout( $generatingFilePath, $generatingFileMtime )";
@@ -1793,11 +1808,11 @@ class eZDFSFileHandlerPostgresqlBackend
     }
 
     /**
-    * Returns the name_trunk for a file path
-    * @param string $filePath
-    * @param string $scope
-    * @return string
-    **/
+     * Returns the name_trunk for a file path
+     * @param string $filePath
+     * @param string $scope
+     * @return string
+     **/
     static protected function nameTrunk( $filePath, $scope )
     {
         switch ( $scope )
@@ -1863,14 +1878,14 @@ class eZDFSFileHandlerPostgresqlBackend
     public function expiredFilesList( $scopes, $limit = array( 0, 100 ), $expiry = false )
     {
         $tables = array( $this->metaDataTable, $this->metaDataTableCache );
-        
+
         if ( count( $scopes ) == 0 || $scopes == false )
             throw new ezcBaseValueException( 'scopes', $scopes, "array of scopes", "parameter" );
 
         $scopeString = $this->_sqlList( $scopes );
-        
+
         $filePathList = array();
-        
+
         foreach ( $tables as $table)
         {
             $query = "SELECT name FROM " . $table . " WHERE expired = 1 AND scope IN( $scopeString )";
@@ -1901,7 +1916,7 @@ class eZDFSFileHandlerPostgresqlBackend
     {
         return $this->dfsbackend->applyServerUri( $filePath );
     }
-    
+
     /**
      * Deletes a batch of cache files from the storage table.
      *
