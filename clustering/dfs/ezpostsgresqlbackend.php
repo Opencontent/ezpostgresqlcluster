@@ -1436,7 +1436,7 @@ class eZDFSFileHandlerPostgresqlBackend
      **/
     protected function _query( $query, $fname = false, $reportError = true )
     {
-        eZDebug::accumulatorStart( 'postgresql_cluster_query', 'MySQL Cluster', 'DB queries' );
+        eZDebug::accumulatorStart( 'postgresql_cluster_query', 'PostgreSQL Cluster', 'DB queries' );
         $time = microtime( true );
 
         $stmt = $this->db->query( $query );
@@ -1736,7 +1736,7 @@ class eZDFSFileHandlerPostgresqlBackend
         $fname = "_checkCacheGenerationTimeout( $generatingFilePath, $generatingFileMtime )";
 
         // reporting
-        eZDebug::accumulatorStart( 'postgresql_cluster_query', 'MySQL Cluster', 'DB queries' );
+        eZDebug::accumulatorStart( 'postgresql_cluster_query', 'PostgreSQL Cluster', 'DB queries' );
         $time = microtime( true );
 
         $nameHash = $this->_md5( $generatingFilePath );
