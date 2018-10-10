@@ -27,6 +27,8 @@ class eZDFSFileHandlerPostgresqlBackend
      */
     protected $maxCopyTries;
 
+    protected static $printReport;
+
     protected static function writeError($string, $label = "", $backgroundClass = "")
     {
         $logName = 'cluster_error.log';
@@ -59,6 +61,31 @@ class eZDFSFileHandlerPostgresqlBackend
 
         $this->cacheDir = eZINI::instance( 'site.ini' )->variable( 'FileSettings', 'CacheDir' );
         $this->storageDir = eZINI::instance( 'site.ini' )->variable( 'FileSettings', 'StorageDir' );
+
+        if (!self::$printReport){
+            self::$printReport = true;
+            eZDebug::appendBottomReport('eZDFSFileHandlerPostgresqlBackend', array('eZDFSFileHandlerPostgresqlBackend', 'printDebugReport'));
+        }
+    }
+
+    static public function printDebugReport($as_html = true)
+    {
+        if (!eZTemplate::isTemplatesUsageStatisticsEnabled())
+            return '';
+
+        $stats = '';
+        if ($as_html) {
+            $stats .= "<h3>Cluster queries</h3>";
+            $stats .= '<table id="eZDFSFileHandlerPostgresqlBackend" class="debug_resource_usage">';
+            $stats .= "<tr class='data'><td>Select queries</td><td style='padding: 0 20px'>" . self::$numQueriesSelect . "</td></tr>";
+            $stats .= "<tr class='data'><td>Insert queries</td><td style='padding: 0 20px'>" . self::$numQueriesInsert . "</td></tr>";
+            $stats .= "<tr class='data'><td>Update queries</td><td style='padding: 0 20px'>" . self::$numQueriesUpdate . "</td></tr>";
+            $stats .= "<tr class='data'><td>Delete queries</td><td style='padding: 0 20px'>" . self::$numQueriesDelete . "</td></tr>";
+            $stats .= "<tr class='data'><td><strong>Total queries</strong></td><td style='padding: 0 20px'><strong>" . self::$numQueries . "</strong></td></tr>";
+            $stats .= "</table>";
+        }
+
+        return $stats;
     }
 
     /**
@@ -1288,7 +1315,7 @@ class eZDFSFileHandlerPostgresqlBackend
         eZDebug::accumulatorStart( 'postgresql_cluster_query', 'PostgreSQL Cluster', 'DB queries' );
         $time = microtime( true );
 
-        $stmt = $this->db->query( $query );
+        $stmt = $this->_query( $query );
         if ( !$stmt )
         {
             $this->_error( $query, $stmt, $fname, $error );
@@ -1529,6 +1556,20 @@ class eZDFSFileHandlerPostgresqlBackend
      **/
     function _report( $query, $fname, $timeTaken, $numRows = false )
     {
+        self::$numQueries++;
+        if(strpos(strtolower($query), 'select') !== false){
+            self::$numQueriesSelect++;
+        }
+        if(strpos(strtolower($query), 'insert') !== false){
+            self::$numQueriesInsert++;
+        }
+        if(strpos(strtolower($query), 'update') !== false){
+            self::$numQueriesUpdate++;
+        }
+        if(strpos(strtolower($query), 'delete') !== false){
+            self::$numQueriesDelete++;
+        }
+
         if ( !self::$dbparams['sql_output'] )
             return;
 
@@ -1612,7 +1653,7 @@ class eZDFSFileHandlerPostgresqlBackend
 
                     // we run the query manually since the default _query won't
                     // report affected rows
-                    $stmt = $this->db->query( $updateQuery );
+                    $stmt = $this->_query( $updateQuery );
                     if ( ( $stmt !== false ) && $stmt->rowCount() == 1 )
                     {
                         return array( 'result' => 'ok', 'mtime' => $mtime );
@@ -1744,7 +1785,7 @@ class eZDFSFileHandlerPostgresqlBackend
 
         // The update query will only succeed if the mtime wasn't changed in between
         $query = "UPDATE " . $this->dbTable( $generatingFilePath ) . " SET mtime = $newMtime WHERE name_hash = {$nameHash} AND mtime = $generatingFileMtime";
-        $stmt = $this->db->query( $query );
+        $stmt = $this->_query( $query );
         if ( !$stmt )
         {
             // @todo Throw an exception
@@ -1764,7 +1805,7 @@ class eZDFSFileHandlerPostgresqlBackend
         if( $numRows == 0 )
         {
             $query = "SELECT mtime FROM " . $this->dbTable( $generatingFilePath ) . " WHERE name_hash = {$nameHash}";
-            $stmt = $this->db->query( $query );
+            $stmt = $this->_query( $query );
             $row = $stmt->fetch( PDO::FETCH_NUM );
             if ( isset( $row[0] ) && $row[0] == $generatingFileMtime )
             {
@@ -1963,7 +2004,15 @@ class eZDFSFileHandlerPostgresqlBackend
      * Amount of executed queries, for debugging purpose
      * @var int
      */
-    protected $numQueries = 0;
+    protected static $numQueries = 0;
+
+    protected static $numQueriesSelect = 0;
+
+    protected static $numQueriesInsert = 0;
+
+    protected static $numQueriesUpdate = 0;
+
+    protected static $numQueriesDelete = 0;
 
     /**
      * Current transaction level.
