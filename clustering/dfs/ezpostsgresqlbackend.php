@@ -1096,6 +1096,18 @@ class eZDFSFileHandlerPostgresqlBackend
                     $query .= 'NOT ';
                 $query .= "IN ('" . implode( "', '", $scopes ) . "')";
             }
+            if ( $path != false && $scopes == false)
+            {
+                $query .= " WHERE name LIKE '" . $path . "%'";
+            }
+            else if ( $path != false)
+            {
+                $query .= " AND name LIKE '" . $path . "%'";
+            }
+            if ( $limit && array_sum($limit) )
+            {
+                $query .= " LIMIT {$limit[0]}, {$limit[1]}";
+            }
 
             $stmt = $this->_query( $query, "_getFileList( array( " . implode( ', ', $scopes ) . " ), $excludeScopes )" );
             if ( !$stmt )
@@ -1106,8 +1118,8 @@ class eZDFSFileHandlerPostgresqlBackend
             }
 
             $filePathList = array();
-            while ( $row = $stmt->fetch( PDO::FETCH_NUM ) )
-                $filePathList[] = $row[0];
+            foreach ($stmt->fetch( PDO::FETCH_NUM ) as $row)
+                $filePathList[] = $row;
 
             unset( $stmt );
         }
