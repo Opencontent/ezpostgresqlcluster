@@ -75,7 +75,16 @@ class eZDFSFileHandlerPostgresqlBackend
         if ( $this->metaDataTableCache == $this->metaDataTable )
             return $this->metaDataTable;
 
-        if ( strpos( $filePath, $this->cacheDir ) !== false && strpos( $filePath, $this->storageDir ) === false )
+        $isInCacheDir = strpos( $filePath, $this->cacheDir );
+        $isInStorageDir = strpos( $filePath, $this->storageDir );
+
+        if ( $isInCacheDir !== false && $isInStorageDir === false )
+        {
+            return $this->metaDataTableCache;
+        }
+
+        // example var/site/cache/my_custom_cache/storage.cache
+        if ( $isInCacheDir !== false && $isInStorageDir !== false && ( $isInCacheDir <  $isInStorageDir ) )
         {
             return $this->metaDataTableCache;
         }
