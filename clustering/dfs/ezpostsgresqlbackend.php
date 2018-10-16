@@ -1754,6 +1754,7 @@ class eZDFSFileHandlerPostgresqlBackend
      **/
     public function _checkCacheGenerationTimeout( $generatingFilePath, $generatingFileMtime )
     {
+        $generatingFileMtime = intval($generatingFileMtime);
         $fname = "_checkCacheGenerationTimeout( $generatingFilePath, $generatingFileMtime )";
 
         // reporting
