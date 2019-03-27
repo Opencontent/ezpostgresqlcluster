@@ -30,14 +30,17 @@ class eZDFSFileHandlerPostgresqlBackend
     protected static function writeError($string, $label = "", $backgroundClass = "")
     {
         $logName = 'cluster_error.log';
-        if ( isset( $GLOBALS['eZCurrentAccess']['name'] ) ){
-            $logName = $GLOBALS['eZCurrentAccess']['name'] . '_cluster_error.log';
-        }
+        //if ( isset( $GLOBALS['eZCurrentAccess']['name'] ) ){
+        //    $logName = $GLOBALS['eZCurrentAccess']['name'] . '_cluster_error.log';
+        //}
+
+        $instanceName = OpenPABase::getCurrentSiteaccessIdentifier();
+        $message = "[$instanceName] ";
 
         if ($label){
-            $message = "[$label] $string";
+            $message .= "[$label] $string";
         }else{
-            $message = $string;
+            $message .= $string;
         }
         eZLog::write($message, $logName);
     }
@@ -162,7 +165,9 @@ class eZDFSFileHandlerPostgresqlBackend
 
         // DFS setup
         if ( $this->dfsbackend === null )
-            $this->dfsbackend = new eZDFSFileHandlerDFSBackend();
+            $this->dfsbackend = eZDFSFileHandlerBackendFactory::build();
+            //$this->dfsbackend = new eZDFSFileHandlerDFSBackend();
+
     }
 
     /**
@@ -700,6 +705,12 @@ class eZDFSFileHandlerPostgresqlBackend
         }
 
         $dfsFileSize = $this->dfsbackend->getDfsFileSize( $filePath );
+        if ( !$dfsFileSize )
+        {
+            // @todo Throw an exception
+            self::writeError( "Error getting filesize of file '$filePath'.", __METHOD__ );
+            return false;
+        }
         $loopCount = 0;
         $localFileSize = 0;
 
