@@ -12,7 +12,7 @@
  * This class allows DFS based clustering using PostgresSQL
  * @package Cluster
  */
-class eZDFSFileHandlerPostgresqlBackend
+class eZDFSFileHandlerPostgresqlBackend implements eZClusterEventNotifier
 {
 
     /**
@@ -213,8 +213,12 @@ class eZDFSFileHandlerPostgresqlBackend
         {
             return false;
         }
-        return $this->_protect( array( $this, "_copyInner" ), $fname,
+        $result = $this->_protect( array( $this, "_copyInner" ), $fname,
             $srcFilePath, $dstFilePath, $fname, $metaData );
+
+        $this->eventHandler->notify( 'cluster/copyFile', array( $dstFilePath ) );
+
+        return $result;
     }
 
     /**
@@ -300,6 +304,9 @@ class eZDFSFileHandlerPostgresqlBackend
         {
             $this->dfsbackend->delete( $filePath );
         }
+
+        $this->eventHandler->notify( 'cluster/deleteFile', array( $filePath ) );
+
         return true;
     }
 
@@ -416,14 +423,18 @@ class eZDFSFileHandlerPostgresqlBackend
         //       for now.
         if ( $insideOfTransaction )
         {
-            return $this->_deleteInner( $filePath, $fname );
+            $res = $this->_deleteInner( $filePath, $fname );
 
         }
         else
         {
-            return $this->_protect( array( $this, '_deleteInner' ), $fname,
+            $res = $this->_protect( array( $this, '_deleteInner' ), $fname,
                 $filePath, $insideOfTransaction, $fname );
         }
+
+        $this->eventHandler->notify( 'cluster/deleteFile', array( $filePath ) );
+
+        return $res;
     }
 
     /**
@@ -462,8 +473,13 @@ class eZDFSFileHandlerPostgresqlBackend
             $fname .= "::_deleteByLike($like)";
         else
             $fname = "_deleteByLike($like)";
-        return $this->_protect( array( $this, '_deleteByLikeInner' ), $fname,
+        $return = $this->_protect( array( $this, '_deleteByLikeInner' ), $fname,
             $like, $fname );
+
+        if ( $return )
+            $this->eventHandler->notify( 'cluster/deleteByLike', array( $like ) );
+
+        return $return;
     }
 
     /**
@@ -600,16 +616,27 @@ class eZDFSFileHandlerPostgresqlBackend
         {
             if ( strstr( $commonPath, '/cache/content' ) !== false or strstr( $commonPath, '/cache/template-block' ) !== false )
             {
+                $event = 'cluster/deleteByNametrunk';
+                $nametrunk = "$commonPath/$dirItem/$commonSuffix";
+                $eventParameters = array( $nametrunk );
                 $where = "WHERE name_trunk = '$commonPath/$dirItem/$commonSuffix'";
             }
             else
             {
+                $event = 'cluster/deleteByDirList';
+                $eventParameters = array( $commonPath, $dirItem, $commonSuffix );
                 $where = "WHERE name LIKE '$commonPath/$dirItem/$commonSuffix%'";
             }
             $sql = "UPDATE " . $this->dbTable( $commonPath ) . " SET mtime=-ABS(mtime), expired=1\n$where";
             if ( !$stmt = $this->_query( $sql, $fname ) )
             {
                 self::writeError( "Failed to delete files in dir: '$commonPath/$dirItem/$commonSuffix%'", __METHOD__ );
+            }
+
+            if ( $event )
+            {
+                $this->eventHandler->notify( $event, $eventParameters );
+                unset( $event );
             }
         }
         return true;
@@ -634,8 +661,14 @@ class eZDFSFileHandlerPostgresqlBackend
             $fname .= "::_exists($filePath)";
         else
             $fname = "_exists($filePath)";
-        $row = $this->_selectOneRow( "SELECT name, mtime FROM " . $this->dbTable( $filePath ) . " WHERE name_hash=" . $this->_md5( $filePath ),
-            $fname, "Failed to check file '$filePath' existence: ", true );
+
+        $row = $this->eventHandler->filter( 'cluster/fileExists', $filePath );
+
+        if ( !is_array( $row ) ) {
+            $row = $this->_selectOneRow("SELECT name, mtime FROM " . $this->dbTable($filePath) . " WHERE name_hash=" . $this->_md5($filePath),
+                $fname, "Failed to check file '$filePath' existence: ", true);
+        }
+
         if ( $row === false )
             return false;
 
@@ -814,14 +847,23 @@ class eZDFSFileHandlerPostgresqlBackend
      */
     function _fetchMetadata( $filePath, $fname = false )
     {
+        $metadata = $this->eventHandler->filter( 'cluster/loadMetadata', $filePath );
+        if ( is_array( $metadata ) )
+            return $metadata;
+
         if ( $fname )
             $fname .= "::_fetchMetadata($filePath)";
         else
             $fname = "_fetchMetadata($filePath)";
         $sql = "SELECT * FROM " . $this->dbTable( $filePath ) . " WHERE name_hash=" . $this->_md5( $filePath );
-        return $this->_selectOneAssoc( $sql, $fname,
+        $metadata = $this->_selectOneAssoc( $sql, $fname,
             "Failed to retrieve file metadata: $filePath",
             true );
+
+        if ( is_array( $metadata ) )
+            $this->eventHandler->notify( 'cluster/storeMetadata', array( $metadata ) );
+
+        return $metadata;
     }
 
     /**
@@ -948,6 +990,8 @@ class eZDFSFileHandlerPostgresqlBackend
 
         $this->_commit( __METHOD__ );
 
+        $this->eventHandler->notify( 'cluster/deleteFile', array( $srcFilePath ) );
+
         return true;
     }
 
@@ -975,8 +1019,12 @@ class eZDFSFileHandlerPostgresqlBackend
         else
             $fname = "_store($filePath, $datatype, $scope)";
 
-        return $this->_protect( array( $this, '_storeInner' ), $fname,
+        $return = $this->_protect( array( $this, '_storeInner' ), $fname,
             $filePath, $datatype, $scope, $fname );
+
+        $this->eventHandler->notify( 'cluster/storeFile', array( $filePath ) );
+
+        return $return;
     }
 
     /**
@@ -1079,6 +1127,8 @@ class eZDFSFileHandlerPostgresqlBackend
         {
             $this->_fail( "Failed to open DFS://$filePath for writing" );
         }
+
+        $this->eventHandler->notify( 'cluster/storeFile', array( $filePath ) );
 
         return true;
     }
@@ -1978,6 +2028,33 @@ class eZDFSFileHandlerPostgresqlBackend
         return $stmt->rowCount();
     }
 
+    /**
+     * Registers $listener as the cluster event listener.
+     *
+     * @param eZClusterEventListener $listener
+     * @return void
+     */
+    public function registerListener( eZClusterEventListener $listener )
+    {
+        $suppliedEvents = array(
+            'cluster/storeMetadata',
+            'cluster/loadMetadata',
+            'cluster/fileExists',
+            'cluster/deleteFile',
+            'cluster/deleteByLike',
+            'cluster/deleteByDirList',
+            'cluster/deleteByNametrunk',
+
+            'cluster/copyFile',
+            'cluster/storeFile',
+        );
+
+        foreach ( $suppliedEvents as $eventName )
+        {
+            list( $domain, $method ) = explode( '/', $eventName );
+            $this->eventHandler->attach( $eventName, array( $listener, $method ) );
+        }
+    }
 
 
     /**
