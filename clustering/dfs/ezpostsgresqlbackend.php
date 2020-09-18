@@ -34,8 +34,12 @@ class eZDFSFileHandlerPostgresqlBackend implements eZClusterEventNotifier
         //    $logName = $GLOBALS['eZCurrentAccess']['name'] . '_cluster_error.log';
         //}
 
-        $instanceName = OpenPABase::getCurrentSiteaccessIdentifier();
-        $message = "[$instanceName] ";
+        if (class_exists('OpenPABase')){
+            $instanceName = OpenPABase::getCurrentSiteaccessIdentifier();
+            $message = "[$instanceName] ";
+        }else{
+            $message = '';
+        }
 
         if ($label){
             $message .= "[$label] $string";
