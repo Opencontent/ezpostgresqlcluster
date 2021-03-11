@@ -2059,6 +2059,28 @@ class eZDFSFileHandlerPostgresqlBackend implements eZClusterEventNotifier
         }
     }
 
+    public function storeClusterizedFileMetadata($filePath, $datatype, $scope, $contentLength)
+    {
+        $fileMTime = time();
+        $nameTrunk = self::nameTrunk($filePath, $scope);
+
+        if ($this->_insertUpdate($this->dbTable($filePath),
+                array('datatype' => $datatype,
+                    'name' => $filePath,
+                    'name_trunk' => $nameTrunk,
+                    'name_hash' => md5($filePath),
+                    'scope' => $scope,
+                    'size' => $contentLength,
+                    'mtime' => $fileMTime,
+                    'expired' => ($fileMTime < 0) ? 1 : 0),
+                array('datatype', 'scope', 'size', 'mtime', 'expired'),
+                'storeClusterizedFileMetadata') === false) {
+            $this->_fail("Failed to insert file metadata while storing. Possible race condition");
+        }
+
+        return true;
+    }
+
 
     /**
      * DB connexion handle
